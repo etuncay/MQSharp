@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Authors>Mostafizur Rahman</Authors>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageProjectUrl>https://github.com/MosRhmn/MQSharp</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/MosRhmn/MQSharp</RepositoryUrl>
+    <RepositoryType>Git</RepositoryType>
+    <PackageTags>Mqtt,MQTT,MQ,M2MQTT,m2mqtt,M2Mqtt,M2MqttDotnetCore</PackageTags>
+    <Version>1.0.2</Version>
+    <Description>MQSharp is Dot.Net Standard Mqtt client library. Supported Mqtt version v3.1.1</Description>
+  </PropertyGroup>
+
+</Project>
