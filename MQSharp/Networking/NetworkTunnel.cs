@@ -15,8 +15,8 @@ namespace MQSharp.Networking
     {
         #region Variables & Objects...
 
-        private Socket _socket;
-        private SslStream _sslStream;
+        private Socket socket;
+        private SslStream sslStream;
 
         #endregion
 
@@ -53,17 +53,17 @@ namespace MQSharp.Networking
             IPEndPoint remoteEndPoint = new IPEndPoint(remoteIPAddress, this.RemotePort);
 
             // Create a TCP/IP  socket.  
-            _socket = new Socket(remoteIPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            socket = new Socket(remoteIPAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
             try
             {
-                _socket.Connect(remoteEndPoint);
+                socket.Connect(remoteEndPoint);
 
                 if (this.Secure)
                 {
                     // create SSL stream
-                    var netStream = new NetworkStream(_socket);
-                    _sslStream = new SslStream(netStream, false, (a, b, c, d) => { return true; });
+                    var netStream = new NetworkStream(socket);
+                    sslStream = new SslStream(netStream, false, (a, b, c, d) => { return true; });
 
                     SslProtocols sslProtocl = SslProtocols.Tls12;
                     if (this.TLSProtocolVersion == TLS_PROTOCOL_VERSION.TLS_1_1)
@@ -77,7 +77,7 @@ namespace MQSharp.Networking
 
                     // server authentication (SSL/TLS handshake)
                     X509CertificateCollection clientCertificates = new X509CertificateCollection(new X509Certificate[] { this.ClientCert });
-                    _sslStream.AuthenticateAsClient(this.RemoteHost, clientCertificates, sslProtocl, false);
+                    sslStream.AuthenticateAsClient(this.RemoteHost, clientCertificates, sslProtocl, false);
 
                 }
 
@@ -93,12 +93,12 @@ namespace MQSharp.Networking
         {
             if (this.Secure)
             {
-                this._sslStream.Write(dataBytes, 0, dataBytes.Length);
-                this._sslStream.Flush();
+                this.sslStream.Write(dataBytes, 0, dataBytes.Length);
+                this.sslStream.Flush();
             }
             else
             {
-                _socket.Send(dataBytes, 0, dataBytes.Length, SocketFlags.None);
+                socket.Send(dataBytes, 0, dataBytes.Length, SocketFlags.None);
             }
             
         }
@@ -113,7 +113,7 @@ namespace MQSharp.Networking
                 {
                     // fixed scenario with socket closed gracefully by peer/broker and
                     // Read return 0. Avoid infinite loop.
-                    read = this._sslStream.Read(receivedData, idx, receivedData.Length - idx);
+                    read = this.sslStream.Read(receivedData, idx, receivedData.Length - idx);
                     if (read == 0)
                         return 0;
                     idx += read;
@@ -129,7 +129,7 @@ namespace MQSharp.Networking
                 {
                     // fixed scenario with socket closed gracefully by peer/broker and
                     // Read return 0. Avoid infinite loop.
-                    read = this._socket.Receive(receivedData, idx, receivedData.Length - idx, SocketFlags.None);
+                    read = this.socket.Receive(receivedData, idx, receivedData.Length - idx, SocketFlags.None);
                     if (read == 0)
                         return 0;
                     idx += read;
@@ -141,7 +141,7 @@ namespace MQSharp.Networking
 
         public void Close()
         {
-            _socket.Close();
+            socket.Close();
         }
 
         #endregion

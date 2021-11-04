@@ -9,7 +9,7 @@ namespace MQSharp.ControlPackets
 {
     internal class CONNACK : ControlPacket
     {
-        #region Properties >>> 
+        #region Properties... 
 
         public byte ReturnCode { get; set; }
 
@@ -19,7 +19,7 @@ namespace MQSharp.ControlPackets
 
         #endregion
 
-        #region Methods >>> 
+        #region Methods... 
 
         public static CONNACK Decode(MQTT_PROTOCOL_VERSION protocolVersion, NetworkTunnel networkTunnel)
         {

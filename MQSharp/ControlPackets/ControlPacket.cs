@@ -50,6 +50,7 @@ namespace MQSharp.ControlPackets
         protected int EncodeRemainingLength(int remainingLength, byte[] data, int index)
         {
             int X = 0;
+
             do
             {
                 X = remainingLength % 128;
@@ -58,6 +59,7 @@ namespace MQSharp.ControlPackets
                     X = X | 0x80;
                 data[index++] = (byte)X;
             } while (remainingLength > 0);
+
             return index;
         }
 
@@ -67,6 +69,7 @@ namespace MQSharp.ControlPackets
             int value = 0;
             int digit = 0;
             byte[] nextByte = new byte[1];
+
             do
             {
                 // next digit from stream
@@ -75,6 +78,7 @@ namespace MQSharp.ControlPackets
                 value += ((digit & 127) * multiplier);
                 multiplier *= 128;
             } while ((digit & 128) != 0);
+
             return value;
         }
     }

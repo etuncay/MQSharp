@@ -382,7 +382,7 @@ namespace MQSharp
                                 {
                                     var subackResponse = SUBACK.Decode(this.MQTTProtocolVersion, networkTunnel);
                                     ProcessSUBACK(subackResponse);
-    }
+                                }
                                 break;
                             case ControlPacket.CONTROL_PACKET_TYPE_UNSUBACK_BYTE:
                                 {
