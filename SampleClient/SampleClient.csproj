@@ -8,11 +8,5 @@
   <ItemGroup>
     <ProjectReference Include="..\MQSharp\MQSharp.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <None Update="dms-commandprocessor-cert.p12">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
   
 </Project>
