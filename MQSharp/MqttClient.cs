@@ -196,11 +196,27 @@ namespace MQSharp
 
         public void Publish(string message, string topic, QoS_Level qosLevel)
         {
+            Thread.Sleep(1); // delay 1 milliseconds to prevent thread blocking
+
             PUBLISH publish = new PUBLISH(topic, message, false, qosLevel, false);
 
             PublishMessage publishMessage = new PublishMessage();
 
-            if (qosLevel == QoS_Level.QoS_1)
+            if (qosLevel == QoS_Level.QoS_0)
+            {
+                publish.PacketId = 0;
+
+                var publishPacketData = publish.GetPacketData(this.MQTTProtocolVersion);
+                networkTunnel.SendStream(publishPacketData);
+
+                PublishedEventArgs eventArgs = new PublishedEventArgs();
+
+                eventArgs.MessageId = publish.PacketId;
+                eventArgs.QoSLevel = 0;
+
+                RaiseOnPublishedEvent(eventArgs);
+            }
+            else if (qosLevel == QoS_Level.QoS_1)
             {
                 publish.PacketId = GetUniquePacketId();
 
@@ -230,22 +246,6 @@ namespace MQSharp
                 var publishPacketData = publish.GetPacketData(this.MQTTProtocolVersion);
                 networkTunnel.SendStream(publishPacketData);
             }
-            else if(qosLevel == QoS_Level.QoS_0)
-            {
-                publish.PacketId = 0;
-
-                var publishPacketData = publish.GetPacketData(this.MQTTProtocolVersion);
-                networkTunnel.SendStream(publishPacketData);
-
-                PublishedEventArgs eventArgs = new PublishedEventArgs();
-
-                eventArgs.MessageId = publish.PacketId;
-                eventArgs.QoSLevel = 0;
-
-                RaiseOnPublishedEvent(eventArgs);
-            }
-
-            
 
             lastMessageTime = DateTime.Now;
 

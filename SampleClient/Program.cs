@@ -11,7 +11,7 @@ namespace SampleClient
         static void Main(string[] args)
         {
             X509Certificate2 clientCert = new X509Certificate2("dms-commandprocessor-cert.p12", "root");
-            var client = new MqttClient("127.0.0.1", 8885, "sample-client", "sample-client", "P@ssw0rd1", true, 60, MQTT_PROTOCOL_VERSION.MQTT_3_1_1);
+            var client = new MqttClient("127.0.0.1", 1883, "sample-client", "sample-client", "P@ssw0rd1", true, 60, MQTT_PROTOCOL_VERSION.MQTT_3_1_1);
             client.MessageResendInterval = 30000;
 
             client.OnConnected += OnConnect;

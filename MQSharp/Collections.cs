@@ -9,7 +9,50 @@ namespace MQSharp
 {
     internal class PublishQueue
     {
-        //private List<PublishMessage> _messageQueue = new List<PublishMessage>();
+        private Dictionary<int, PublishMessage> messageQueue;
+
+        public PublishQueue()
+        {
+            messageQueue = new Dictionary<int, PublishMessage>();
+        }
+
+        public void Push(PublishMessage publishMessage)
+        {
+            messageQueue.Add(publishMessage.MessageId, publishMessage);
+        }
+
+        public bool Remove(int messageId)
+        {
+            return messageQueue.Remove(messageId);
+        }
+
+        public void Update(int messageId, PublishMessage publishMessage)
+        {
+            messageQueue[messageId] = publishMessage;
+        }
+
+        public PublishMessage Pop(double messageResendInterval)
+        {
+            DateTime timeOlderThanResendInterval = DateTime.Now.AddMilliseconds(-messageResendInterval);
+
+            return messageQueue
+                .Values
+                .Where(i => i.LastModifiedTime < timeOlderThanResendInterval)
+                .OrderBy(i => i.LastModifiedTime)
+                .FirstOrDefault();
+        }
+
+        public PublishMessage Pop(int messageId)
+        {
+            return messageQueue.Where(i => i.Key == messageId).Select(i => i.Value).FirstOrDefault();
+        }
+
+        public void Clear()
+        {
+            messageQueue.Clear();
+        }
+
+        //private PublishMessage[] messageQueue = new PublishMessage[65535];
 
         //public PublishQueue()
         //{
@@ -18,14 +61,14 @@ namespace MQSharp
 
         //public void Push(PublishMessage publishMessage)
         //{
-        //    _messageQueue.Insert(publishMessage.MessageId, publishMessage);
+        //    messageQueue[publishMessage.MessageId] = publishMessage;
         //}
 
-        //public void Remove(PublishMessage publishMessage)
+        //public void Remove(int messageId)
         //{
-        //    if(_messageQueue.Count > 0)
+        //    if (messageQueue.Length > 0)
         //    {
-        //        _messageQueue.Remove(publishMessage);
+        //        messageQueue[messageId] = new PublishMessage();
 
         //    }
 
@@ -35,9 +78,9 @@ namespace MQSharp
         //{
         //    try
         //    {
-        //        if (_messageQueue.Count > 0)
+        //        if (messageQueue.Length > 0)
         //        {
-        //            _messageQueue[messageId] = publishMessage;
+        //            messageQueue[messageId] = publishMessage;
 
         //        }
         //    }
@@ -48,11 +91,11 @@ namespace MQSharp
         //{
         //    DateTime timeOlderThanResendInterval = DateTime.Now.AddMilliseconds(-messageResendInterval);
 
-        //    if(_messageQueue.Count > 0)
+        //    if (messageQueue.Length > 0)
         //    {
         //        try
         //        {
-        //            return _messageQueue
+        //            return messageQueue
         //                .Where(i => i.LastModifiedTime < timeOlderThanResendInterval)
         //                .OrderBy(i => i.LastModifiedTime)
         //                .FirstOrDefault();
@@ -70,11 +113,11 @@ namespace MQSharp
 
         //public PublishMessage Pop(int messageId)
         //{
-        //    if(_messageQueue.Count > 0)
+        //    if (messageQueue.Length > 0)
         //    {
         //        try
         //        {
-        //            return _messageQueue[messageId];
+        //            return messageQueue[messageId];
         //        }
         //        catch (Exception)
         //        {
@@ -89,95 +132,11 @@ namespace MQSharp
 
         //public void Clear()
         //{
-        //    _messageQueue.Clear();
+        //    for(int i=0; i< 65535; i++)
+        //    {
+        //        messageQueue[i] = new PublishMessage();
+        //    }
         //}
-
-
-        private PublishMessage[] _messageQueue = new PublishMessage[65535];
-
-        public PublishQueue()
-        {
-
-        }
-
-        public void Push(PublishMessage publishMessage)
-        {
-            _messageQueue[publishMessage.MessageId] = publishMessage;
-        }
-
-        public void Remove(int messageId)
-        {
-            if (_messageQueue.Length > 0)
-            {
-                _messageQueue[messageId] = new PublishMessage();
-
-            }
-
-        }
-
-        public void Update(int messageId, PublishMessage publishMessage)
-        {
-            try
-            {
-                if (_messageQueue.Length > 0)
-                {
-                    _messageQueue[messageId] = publishMessage;
-
-                }
-            }
-            catch (Exception) { }
-        }
-
-        public PublishMessage Pop(double messageResendInterval)
-        {
-            DateTime timeOlderThanResendInterval = DateTime.Now.AddMilliseconds(-messageResendInterval);
-
-            if (_messageQueue.Length > 0)
-            {
-                try
-                {
-                    return _messageQueue
-                        .Where(i => i.LastModifiedTime < timeOlderThanResendInterval)
-                        .OrderBy(i => i.LastModifiedTime)
-                        .FirstOrDefault();
-                }
-                catch (Exception)
-                {
-                    return null;
-                }
-            }
-            else
-            {
-                return null;
-            }
-        }
-
-        public PublishMessage Pop(int messageId)
-        {
-            if (_messageQueue.Length > 0)
-            {
-                try
-                {
-                    return _messageQueue[messageId];
-                }
-                catch (Exception)
-                {
-                    return null;
-                }
-            }
-            else
-            {
-                return null;
-            }
-        }
-
-        public void Clear()
-        {
-            for(int i=0; i< 65535; i++)
-            {
-                _messageQueue[i] = new PublishMessage();
-            }
-        }
 
     }
 
@@ -193,11 +152,6 @@ namespace MQSharp
         // 3 = PUBREC receive
         // 4 = PUBREL send and waiting for PUBCOMP
         public int Status { get; set; }
-    }
-
-    internal class ReceiveMessage
-    {
-
     }
 
     #region Enums...
