@@ -14,13 +14,14 @@ namespace SampleClient
             var client = new MqttClient("127.0.0.1", 1883, "sample-client", "sample-client", "P@ssw0rd1", true, 60, MQTT_PROTOCOL_VERSION.MQTT_3_1_1);
             client.MessageResendInterval = 30000;
 
-            client.OnConnected += OnConnect;
-            client.OnPingSent += OnPing;
-            client.OnPingResponseReceived += OnPingResponse;
-            client.OnSubscribed += OnSubscribed;
-            client.OnUnsubscribed += OnUnsubscribed;
-            client.OnPublished += OnPublished;
-            client.OnPublishReceived += OnPublishReceived;
+            client.Connected += OnConnect;
+            client.PingSending += OnPinSending;
+            client.PingSent += OnPinSent;
+            client.PingResponseReceived += OnPingResponse;
+            client.Subscribed += OnSubscribed;
+            client.Unsubscribed += OnUnsubscribed;
+            client.Published += OnPublished;
+            client.PublishReceived += OnPublishReceived;
 
             var connected = client.Connect();
 
@@ -59,9 +60,14 @@ namespace SampleClient
             Console.WriteLine($"Return Code: {e.ReturnCode}, Return Message: {e.ReturnMessage}");
         }
 
-        static void OnPing(object sender, EventArgs e)
+        static void OnPinSending(object sender, EventArgs e)
         {
-            Console.WriteLine($"Ping to broker at {DateTime.Now}");
+            Console.WriteLine($"Ping sending to broker {DateTime.Now}");
+        }
+
+        static void OnPinSent(object sender, EventArgs e)
+        {
+            Console.WriteLine($"Ping sent to broker at {DateTime.Now}");
         }
 
         static void OnPingResponse(object sender, EventArgs e)

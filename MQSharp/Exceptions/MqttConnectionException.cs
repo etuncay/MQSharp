@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
-namespace MQSharp.Exceptions
+namespace MQSharp
 {
     public class MqttConnectionException : Exception
     {

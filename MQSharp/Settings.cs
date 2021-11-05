@@ -10,6 +10,7 @@ namespace MQSharp
         public static int DEFAULT_TIMEOUT { get; } = 30000; // default timeout period
         public static int MIN_TOPIC_LENGTH = 1; // minimum topics list length
         public static int MAX_TOPIC_LENGTH = 65535; // maximum topic list length
+        public static int MAX_PACKET_ID = 65535;
 
         public static Dictionary<byte, string> MQTT_3_1_1_CONNACK_RETURN_CODE = new Dictionary<byte, string>
         {

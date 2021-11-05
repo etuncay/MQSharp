@@ -22,7 +22,9 @@ namespace MQSharp
 
         private bool running = false;
         private DateTime lastMessageTime;
-        private int lastPacketId = 1;
+        private int packetId = 1;
+        private bool secure = false;
+        private bool isConnected = false;
         private PublishQueue publishQueue = new PublishQueue();
 
         private NetworkTunnel networkTunnel;
@@ -31,14 +33,15 @@ namespace MQSharp
 
         // Events
         private AutoResetEvent connectionDoneEvent = new AutoResetEvent(false);
-        public event EventHandler<ConnectEventArgs> OnConnected;
-        public event EventHandler OnDisconnected;
-        public event EventHandler<SubscribedEventArgs> OnSubscribed;
-        public event EventHandler<UnsubscribedEventArgs> OnUnsubscribed;
-        public event EventHandler<PublishedEventArgs> OnPublished;
-        public event EventHandler<PublishReceivedEventArgs> OnPublishReceived;
-        public event EventHandler OnPingSent;
-        public event EventHandler OnPingResponseReceived;
+        public event EventHandler<ConnectEventArgs> Connected;
+        public event EventHandler Disconnected;
+        public event EventHandler<SubscribedEventArgs> Subscribed;
+        public event EventHandler<UnsubscribedEventArgs> Unsubscribed;
+        public event EventHandler<PublishedEventArgs> Published;
+        public event EventHandler<PublishReceivedEventArgs> PublishReceived;
+        public event EventHandler PingSending;
+        public event EventHandler PingSent;
+        public event EventHandler PingResponseReceived;
 
         #endregion
 
@@ -49,7 +52,6 @@ namespace MQSharp
         public string ClientId { get; set; }
         public string Username { get; set; }
         public string Password { get; set; }
-        public bool Secure { get; set; }
         public X509Certificate CACert { get; set; }
         public X509Certificate ClientCert { get; set; }
         public bool WillFlag { get; set; } = false;
@@ -61,7 +63,7 @@ namespace MQSharp
         public MQTT_PROTOCOL_VERSION MQTTProtocolVersion { get; set; }
         public TLS_PROTOCOL_VERSION TLSProtocolVersion { get; set; }
         public double MessageResendInterval { get; set; } = 30000; // millisecond, deafult 30 sec
-        public bool IsConnected { get; set; }
+        public bool IsConnected { get { return this.isConnected;} }
 
         #endregion
 
@@ -86,12 +88,17 @@ namespace MQSharp
             this.Initialize("127.0.0.1", 1883, guid, guid, null, null, null, true, 60, MQTT_PROTOCOL_VERSION.MQTT_3_1_1, TLS_PROTOCOL_VERSION.TLS_1_2);
         }
 
-        public MqttClient(string brokerHost, int brokerPort, string clientId, string username, string password, bool cleanSession, int keepAlivePeriod, MQTT_PROTOCOL_VERSION mqttProtocolVersion)
+        public MqttClient(string brokerHost, int brokerPort, string clientId, string username, string password, bool cleanSession = true, int keepAlivePeriod = 60, MQTT_PROTOCOL_VERSION mqttProtocolVersion = MQTT_PROTOCOL_VERSION.MQTT_3_1_1)
         {
             this.Initialize(brokerHost, brokerPort, clientId, username, password, null, null, cleanSession, keepAlivePeriod, mqttProtocolVersion, TLS_PROTOCOL_VERSION.TLS_1_2);
         }
 
-        public MqttClient(string brokerHost, int brokerPort, string clientId, string username, string password, X509Certificate caCert, X509Certificate clientCert, bool cleanSession, int keepAlivePeriod, TLS_PROTOCOL_VERSION tlsProtocolVersion, MQTT_PROTOCOL_VERSION mqttProtocolVersion)
+        public MqttClient(string brokerHost, int brokerPort, string clientId, string username, string password, X509Certificate caCert, bool cleanSession = true, int keepAlivePeriod = 60, TLS_PROTOCOL_VERSION tlsProtocolVersion = TLS_PROTOCOL_VERSION.TLS_1_2, MQTT_PROTOCOL_VERSION mqttProtocolVersion = MQTT_PROTOCOL_VERSION.MQTT_3_1_1)
+        {
+            this.Initialize(brokerHost, brokerPort, clientId, username, password, caCert, null, cleanSession, keepAlivePeriod, mqttProtocolVersion, tlsProtocolVersion);
+        }
+
+        public MqttClient(string brokerHost, int brokerPort, string clientId, string username, string password, X509Certificate caCert, X509Certificate clientCert, bool cleanSession = true, int keepAlivePeriod = 60, TLS_PROTOCOL_VERSION tlsProtocolVersion = TLS_PROTOCOL_VERSION.TLS_1_2, MQTT_PROTOCOL_VERSION mqttProtocolVersion = MQTT_PROTOCOL_VERSION.MQTT_3_1_1)
         {
             this.Initialize(brokerHost, brokerPort, clientId, username, password, caCert, clientCert, cleanSession, keepAlivePeriod, mqttProtocolVersion, tlsProtocolVersion);
         }
@@ -102,7 +109,7 @@ namespace MQSharp
 
         public bool Connect()
         {
-            networkTunnel = new NetworkTunnel(this.BrokerHost, this.BrokerPort, this.Secure, this.CACert, this.ClientCert, this.TLSProtocolVersion);
+            networkTunnel = new NetworkTunnel(this.BrokerHost, this.BrokerPort, this.secure, this.CACert, this.ClientCert, this.TLSProtocolVersion);
 
             bool tunnelOpen = networkTunnel.Open();
 
@@ -110,7 +117,7 @@ namespace MQSharp
             {
                 this.running = true;
 
-                ThreadManager.StartThread(this.ReceivingEngine);
+                ThreadManager.StartThread(this.StartReceivingEngine);
 
                 CONNECT connect = new CONNECT(this.ClientId, this.Username, this.Password, this.WillFlag, this.WillTopic, this.WillMessage, this.WillRetain, QoS_Level.QoS_0, this.CleanSession, this.KeepAlivePeriod, this.MQTTProtocolVersion);
 
@@ -124,15 +131,15 @@ namespace MQSharp
 
                 if (connackResponse.Accepted == true)
                 {
-                    ThreadManager.StartThread(this.KeepAliveEngine);
-                    ThreadManager.StartThread(this.PublishEngine);
+                    ThreadManager.StartThread(this.StartPingEngine);
+                    ThreadManager.StartThread(this.StartPublishEngine);
 
-                    this.IsConnected = true;
+                    this.isConnected = true;
 
                     if(this.CleanSession == true || connackResponse.SessionPresent == false)
                     {
                         // Clean all session data
-                        lastPacketId = 1;
+                        packetId = 1;
                         publishQueue.Clear();
                     }
 
@@ -140,7 +147,7 @@ namespace MQSharp
                 }
                 else if (connackResponse.Accepted == false)
                 {
-                    this.IsConnected = false;
+                    this.isConnected = false;
 
                     return false;
                 }
@@ -214,7 +221,7 @@ namespace MQSharp
                 eventArgs.MessageId = publish.PacketId;
                 eventArgs.QoSLevel = 0;
 
-                RaiseOnPublishedEvent(eventArgs);
+                RaisePublishedEvent(eventArgs);
             }
             else if (qosLevel == QoS_Level.QoS_1)
             {
@@ -249,58 +256,63 @@ namespace MQSharp
 
             lastMessageTime = DateTime.Now;
 
-            //_publishQueueEmptyEvent.Set();
         }
 
         #endregion
 
         #region Events...
 
-        protected virtual void RaiseOnConnectedEvent(ConnectEventArgs e)
+        protected virtual void RaiseConnectedEvent(ConnectEventArgs e)
         {
-            EventHandler<ConnectEventArgs> handler = OnConnected;
+            EventHandler<ConnectEventArgs> handler = Connected;
             handler?.Invoke(this, e);
         }
 
-        protected virtual void RaiseOnDisconnectedEvent(EventArgs e)
+        protected virtual void RaiseDisconnectedEvent(EventArgs e)
         {
-            EventHandler handler = OnDisconnected;
+            EventHandler handler = Disconnected;
             handler?.Invoke(this, e);
         }
 
-        protected virtual void RaiseOnSubscribedEvent(SubscribedEventArgs e)
+        protected virtual void RaiseSubscribedEvent(SubscribedEventArgs e)
         {
-            EventHandler<SubscribedEventArgs> handler = OnSubscribed;
+            EventHandler<SubscribedEventArgs> handler = Subscribed;
             handler?.Invoke(this, e);
         }
 
-        protected virtual void RaiseOnUnsubscribedEvent(UnsubscribedEventArgs e)
+        protected virtual void RaiseUnsubscribedEvent(UnsubscribedEventArgs e)
         {
-            EventHandler<UnsubscribedEventArgs> handler = OnUnsubscribed;
+            EventHandler<UnsubscribedEventArgs> handler = Unsubscribed;
             handler?.Invoke(this, e);
         }
 
-        protected virtual void RaiseOnPublishedEvent(PublishedEventArgs e)
+        protected virtual void RaisePublishedEvent(PublishedEventArgs e)
         {
-            EventHandler<PublishedEventArgs> handler = OnPublished;
+            EventHandler<PublishedEventArgs> handler = Published;
             handler?.Invoke(this, e);
         }
 
-        protected virtual void RaiseOnPublishReceivedEvent(PublishReceivedEventArgs e)
+        protected virtual void RaisePublishReceivedEvent(PublishReceivedEventArgs e)
         {
-            EventHandler<PublishReceivedEventArgs> handler = OnPublishReceived;
+            EventHandler<PublishReceivedEventArgs> handler = PublishReceived;
             handler?.Invoke(this, e);
         }
 
-        protected virtual void RaiseOnPingSentEvent(EventArgs e)
+        protected virtual void RaisePingSendingEvent(EventArgs e)
         {
-            EventHandler handler = OnPingSent;
+            EventHandler handler = PingSending;
             handler?.Invoke(this, e);
         }
 
-        protected virtual void RaiseOnPingResponseReceivedEvent(EventArgs e)
+        protected virtual void RaisePingSentEvent(EventArgs e)
         {
-            EventHandler handler = OnPingResponseReceived;
+            EventHandler handler = PingSent;
+            handler?.Invoke(this, e);
+        }
+
+        protected virtual void RaisePingResponseReceivedEvent(EventArgs e)
+        {
+            EventHandler handler = PingResponseReceived;
             handler?.Invoke(this, e);
         }
 
@@ -314,7 +326,6 @@ namespace MQSharp
             string clientId, 
             string username, 
             string password, 
-            //bool secure, 
             X509Certificate caCert,
             X509Certificate clientCert, 
             bool cleanSession, 
@@ -330,11 +341,11 @@ namespace MQSharp
             this.Password = password;
             if (caCert != null || clientCert != null)
             {
-                this.Secure = true;
+                this.secure = true;
             }
             else
             {
-                this.Secure = false;
+                this.secure = false;
             }
             
             this.CACert = caCert;
@@ -350,7 +361,7 @@ namespace MQSharp
             this.MessageResendInterval = 30000;
         }
 
-        private void ReceivingEngine()
+        private void StartReceivingEngine()
         {
             byte[] fixedHeaderFirstByte = new byte[1];
 
@@ -435,7 +446,7 @@ namespace MQSharp
             }
         }
 
-        private void PublishEngine()
+        private void StartPublishEngine()
         {
             while (running)
             {
@@ -502,21 +513,6 @@ namespace MQSharp
             publishQueue.Update(publishMessage.MessageId, publishMessage);
         }
 
-        private void ProcessPUBRECReceivedPublishMessage(PublishMessage publishMessage)
-        {
-            PUBREL pubrel = new PUBREL();
-            pubrel.PacketId = publishMessage.PublishPacket.PacketId;
-
-            var pubrelPacketData = pubrel.GetPacketData(this.MQTTProtocolVersion);
-
-            networkTunnel.SendStream(pubrelPacketData);
-
-            lastMessageTime = DateTime.Now;
-
-            publishMessage.Status = 4;
-            publishQueue.Update(publishMessage.MessageId, publishMessage);
-        }
-
         private void ProcessCONNACK(CONNACK connackPacket)
         {
             string returnMessage;
@@ -526,14 +522,14 @@ namespace MQSharp
             eventArgs.ReturnCode = connackPacket.ReturnCode;
             eventArgs.ReturnMessage = returnMessage;
 
-            RaiseOnConnectedEvent(eventArgs);
+            RaiseConnectedEvent(eventArgs);
 
             connectionDoneEvent.Set();
         }
 
         private void ProcessPINGRESP(PINGRESP pingrespPacket)
         {
-            RaiseOnPingResponseReceivedEvent(EventArgs.Empty);
+            RaisePingResponseReceivedEvent(EventArgs.Empty);
         }
 
         private void ProcessSUBACK(SUBACK subackPacket)
@@ -557,7 +553,7 @@ namespace MQSharp
                     );
             }
 
-            RaiseOnSubscribedEvent(eventArgs);
+            RaiseSubscribedEvent(eventArgs);
 
         }
 
@@ -567,7 +563,22 @@ namespace MQSharp
 
             eventArgs.MessageId = unsubackPacket.PacketId;
 
-            RaiseOnUnsubscribedEvent(eventArgs);
+            RaiseUnsubscribedEvent(eventArgs);
+        }
+
+        private void ProcessPUBRECReceivedPublishMessage(PublishMessage publishMessage)
+        {
+            PUBREL pubrel = new PUBREL();
+            pubrel.PacketId = publishMessage.PublishPacket.PacketId;
+
+            var pubrelPacketData = pubrel.GetPacketData(this.MQTTProtocolVersion);
+
+            networkTunnel.SendStream(pubrelPacketData);
+
+            lastMessageTime = DateTime.Now;
+
+            publishMessage.Status = 4;
+            publishQueue.Update(publishMessage.MessageId, publishMessage);
         }
 
         private void ProcessPUBACK(PUBACK pubackPacket)
@@ -579,7 +590,7 @@ namespace MQSharp
             eventArgs.MessageId = pubackPacket.PacketId;
             eventArgs.QoSLevel = 1;
 
-            RaiseOnPublishedEvent(eventArgs);
+            RaisePublishedEvent(eventArgs);
         }
 
         private void ProcessPUBREC(PUBREC pubrecPacket)
@@ -627,7 +638,7 @@ namespace MQSharp
             eventArgs.MessageId = pubcompPacket.PacketId;
             eventArgs.QoSLevel = 2;
 
-            RaiseOnPublishedEvent(eventArgs);
+            RaisePublishedEvent(eventArgs);
         }
 
         private void ProcessPUBLISH(PUBLISH publishPacket)
@@ -638,7 +649,7 @@ namespace MQSharp
             eventArgs.QoSLevel = (int)publishPacket.QoSLevel;
             eventArgs.Payload = publishPacket.Payload;
 
-            RaiseOnPublishReceivedEvent(eventArgs);
+            RaisePublishReceivedEvent(eventArgs);
 
             if(publishPacket.QoSLevel == QoS_Level.QoS_1)
             {
@@ -663,7 +674,7 @@ namespace MQSharp
 
         }
 
-        private void KeepAliveEngine()
+        private void StartPingEngine()
         {
             double keepAlivePeriodInMillisecond = this.KeepAlivePeriod * 1000;
 
@@ -679,7 +690,8 @@ namespace MQSharp
 
                     if(pingrespResponse == null)
                     {
-                        throw new Exception($"No response from the broker: {this.BrokerHost}");
+                        throw new NoResponseFromBroker($"Ping request sent, but no response from the broker: {this.BrokerHost} " +
+                            $"within the keep alive period {this.KeepAlivePeriod} seconds.");
                     }
                 }
                 else
@@ -693,11 +705,13 @@ namespace MQSharp
         {
             PINGREQ pingreqPacket = new PINGREQ();
 
+            RaisePingSendingEvent(EventArgs.Empty);
+
             networkTunnel.SendStream(pingreqPacket.GetPacketData());
 
             lastMessageTime = DateTime.Now;
 
-            RaiseOnPingSentEvent(EventArgs.Empty);
+            RaisePingSentEvent(EventArgs.Empty);
         }
 
         private double GetLastMessageTimeDifferenceInMilliseconds()
@@ -708,15 +722,15 @@ namespace MQSharp
 
         private int GetUniquePacketId()
         {
-            if(lastPacketId < 65535)
+            if(packetId < Settings.MAX_PACKET_ID)
             {
-                return lastPacketId++;
+                return packetId++;
             }
             else
             {
                 // restart numbering
-                lastPacketId = 1;
-                return lastPacketId++;
+                packetId = 1;
+                return packetId++;
             }
         }
 

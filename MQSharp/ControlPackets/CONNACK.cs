@@ -1,5 +1,4 @@
-﻿using MQSharp.Exceptions;
-using MQSharp.Networking;
+﻿using MQSharp.Networking;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
